@@ -1,0 +1,119 @@
+#! /usr/bin/env node
+// -*- Mode: js2; -*-
+
+var argv = require("optimist")
+  .usage("$0 [--adset adset] [--secret secret] [--output out] url [output]")
+  .alias('a', 'adset')
+  .alias('d', 'debug')
+  .alias('s', 'secret')
+  .alias('o', 'output')
+  .boolean('redo')
+  .boolean('debug')
+  .demand('adset')
+  .argv;
+
+var adset = argv.adset;
+var api_url = argv.api || "http://api.yactraq.com";
+
+var old_style = false;
+
+var fs = require('fs');
+
+var secret = argv.secret;
+if (! secret) {
+  try {
+    log("Try to read secret from .secret");
+    var fcontent = fs.readFileSync(".secret", "UTF-8");
+    if (fcontent) {
+      secret = fcontent.replace(/^\s*(.*)\s*$/, "$1");
+      log("Secret read");
+    }
+  } catch (x) {
+    ;
+  }
+}
+if (! secret) {
+  console.error("Must provide a yactraq secret value");
+  process.exit(1);
+}
+
+if (argv._.length < 1) {
+  console.error("Must provide URL to process");
+  process.exit(1);
+}
+
+var url = argv._[0];
+
+// Set up output stream
+var ostream = process.stdout;
+if (argv.output) {
+  ostream = fs.createWriteStream(argv.output).
+    on('error', function (err) {
+      console.error(argv.output + ": " + err.toString());
+      process.exit(1);
+    });
+}
+
+function processStream(url, cb) {
+  var request = require('request');
+
+  var params = {
+    adset: adset,
+    secret: secret,
+    url: url,
+    start: 1,
+    redo: argv.redo ? 1 : 0
+  };
+
+  function queueAndWait(cb) {
+    log("Request stream-status" + (params.start ? " (start)" : ""));
+    request({ uri: api_url + "/stream-status", qs: params, json: true },
+      function (err, resp, obj) {
+        if (err) { cb(err); return; }
+
+        log("status=" + obj.status);
+        if (obj.status !== 'processed' && obj.status !== 'failed') {
+          delete params.start;
+          delete params.redo;
+          log("wait 60s");;
+          setTimeout(function () { queueAndWait(cb); }, 60*1000);
+        } else {
+          cb(null, obj);
+        }
+      });
+  }
+
+  queueAndWait(cb);
+}
+
+processStream(url, function (err, data) {
+  if (err) {
+    console.error(url + ": " + err.toString());
+    process.exit(1);
+    return;
+  }
+
+  log("done.");
+  var topics = data.topics;
+  if (old_style) {
+    var new_topics = [];
+    topics.forEach(function (t) {
+      new_topics.push([t.complete ? 0 : t.ts].concat(t.topics));
+    });
+    topics = new_topics;
+  }
+  if (! topics) topics = [];
+  var s = JSON.stringify(topics);
+  ostream.write(s);
+  if (ostream == process.stdout) {
+    process.exit(0);
+  }
+  ostream.on('close', function () {
+    process.exit(0);
+  });
+  ostream.end();
+});
+
+function log(msg) {
+  if (argv.debug) console.warn(msg);
+}

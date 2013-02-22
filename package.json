@@ -1,0 +1,32 @@
+{
+  "name": "yactraq",
+  "version": "0.0.1",
+  "description": "Interface to Yactraq Speech2Topics API",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/leei/yactraq.git"
+  },
+  "dependencies": {
+    "optimist": "",
+    "request": ""
+  },
+  "bin": {
+    "yactraq": "./bin/yactraq"
+  },
+  "keywords": [
+    "yactraq",
+    "speech",
+    "recognition",
+    "open",
+    "directory",
+    "advertising"
+  ],
+  "author": "Lee Iverson",
+  "license": "BSD",
+  "readmeFilename": "README.md",
+  "gitHead": "721e009eeb399e0c621bd05a60d3e8bdbb804c78"
+}

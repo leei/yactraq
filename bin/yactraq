@@ -9,6 +9,7 @@ var argv = require("optimist")
   .alias('o', 'output')
   .boolean('redo')
   .boolean('debug')
+  .boolean('transcript')
   .demand('adset')
   .argv;
 
@@ -62,7 +63,8 @@ function processStream(url, cb) {
     secret: secret,
     url: url,
     start: 1,
-    redo: argv.redo ? 1 : 0
+    redo: argv.redo ? 1 : 0,
+    tx: argv.transcript ? 1 : 0
   };
 
   function queueAndWait(cb) {
@@ -103,6 +105,10 @@ processStream(url, function (err, data) {
     topics = new_topics;
   }
   if (! topics) topics = [];
+  // Change the output format slightly.
+  if (argv.transcript) {
+    topics = { topics: topics, transcript: data.transcript };
+  }
   var s = JSON.stringify(topics);
   ostream.write(s);
   if (ostream == process.stdout) {

@@ -7,6 +7,7 @@ var argv = require("optimist")
   .alias('d', 'debug')
   .alias('s', 'secret')
   .alias('o', 'output')
+  .alias('t', 'transcript')
   .boolean('redo')
   .boolean('debug')
   .boolean('transcript')
@@ -107,9 +108,9 @@ processStream(url, function (err, data) {
   if (! topics) topics = [];
   // Change the output format slightly.
   if (argv.transcript) {
-    topics = { topics: topics, transcript: data.transcript };
+    topics = { topics: topics, transcript: data.transcript, raw: data.raw };
   }
-  var s = JSON.stringify(topics);
+  var s = JSON.stringify(topics, null, 1);
   ostream.write(s);
   if (ostream == process.stdout) {
     process.exit(0);

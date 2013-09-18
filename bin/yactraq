@@ -7,7 +7,10 @@ var argv = require("optimist")
   .alias('d', 'debug')
   .alias('s', 'secret')
   .alias('o', 'output')
+  .alias('r', 'reset')
   .alias('t', 'transcript')
+  .boolean('rf')
+  .boolean('reset')
   .boolean('redo')
   .boolean('debug')
   .boolean('transcript')
@@ -63,10 +66,10 @@ function processStream(url, cb) {
     adset: adset,
     secret: secret,
     url: url,
-    start: 1,
-    redo: argv.redo ? 1 : 0,
-    tx: argv.transcript ? 1 : 0
+    start: argv.reset ? 'reset' : 1
   };
+  if (argv.redo) params.redo = 1;
+  if (argv.transcript) params.tx = 1;
 
   function queueAndWait(cb) {
     log("Request stream-status" + (params.start ? " (start)" : ""));
@@ -74,7 +77,9 @@ function processStream(url, cb) {
       function (err, resp, obj) {
         if (err) { cb(err); return; }
 
+        log("href=" + resp.request.href);
         log("status=" + obj.status);
+        log("body=" + JSON.stringify(obj, null, 1));
         if (obj.status !== 'processed' && obj.status !== 'failed') {
           delete params.start;
           delete params.redo;
@@ -89,6 +94,26 @@ function processStream(url, cb) {
   queueAndWait(cb);
 }
 
+function rf(topics) {
+  var rf_accum = {};
+  for (var i = 0; i < topics.length; ++i) {
+    var t = topics[i];
+    var ts = t.ts, ts_t = t.topics;
+    // Accumulate values for calculating RF.
+    for (var j = 0; j < ts_t.length; ++j) {
+      var key = ts_t[j];
+      if (! rf_accum[key]) { rf_accum[key] = 0; }
+      rf_accum[key] += 6 - j;
+    }
+  }
+
+  // Now sort and process to get final RF.
+  var rfa = [];
+  for (var k in rf_accum) { rfa.push([rf_accum[k], k]); }
+  rfa = rfa.sort(function (x, y) { return y[0] - x[0]; });
+  return rfa;
+}
+
 processStream(url, function (err, data) {
   if (err) {
     console.error(url + ": " + err.toString());
@@ -97,20 +122,23 @@ processStream(url, function (err, data) {
   }
 
   log("done.");
+  //console.log("OUT: " + JSON.stringify(data, null, 1));
+  var out = data;
   var topics = data.topics;
   if (old_style) {
     var new_topics = [];
     topics.forEach(function (t) {
       new_topics.push([t.complete ? 0 : t.ts].concat(t.topics));
     });
-    topics = new_topics;
+    out = topics = new_topics;
+  } else {
+    // Change the output format slightly.
+    if (argv.rf) {
+      out.rf = rf(topics);
+    }
   }
-  if (! topics) topics = [];
-  // Change the output format slightly.
-  if (argv.transcript) {
-    topics = { topics: topics, transcript: data.transcript, raw: data.raw };
-  }
-  var s = JSON.stringify(topics, null, 1);
+
+  var s = JSON.stringify(out, null, 1);
   ostream.write(s);
   if (ostream == process.stdout) {
     process.exit(0);
